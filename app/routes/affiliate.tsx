@@ -62,7 +62,6 @@ export default function AffiliateLogger() {
     useEffect(() => {
         if (!nostr || !event) return;
 
-        // Extract `nevent` from the 13166 event
         const classifiedTag = event.tags.find(tag => tag[0] === "classified" && tag[1].startsWith("nevent"));
 
         if (!classifiedTag || !classifiedTag[1]) {
@@ -72,7 +71,6 @@ export default function AffiliateLogger() {
 
         const nevent = classifiedTag[1];
 
-        // Decode `nevent` to get hex event ID
         let event_id;
         try {
             [event_id] = convertNEvent(nevent);
@@ -84,12 +82,11 @@ export default function AffiliateLogger() {
 
         console.log("Decoded nevent:", event_id);
 
-        // Fetch classified ads using the extracted event ID
         (async () => {
             try {
                 const fetchedEvents = await nostr.getEvents(
                     "wss://relay.damus.io",
-                    [event_id] // Pass the extracted hex event ID
+                    [event_id]
                 );
 
                 if (fetchedEvents.length > 0) {
@@ -104,7 +101,7 @@ export default function AffiliateLogger() {
         })();
     }, [nostr, event]);
 
-    // Convert `nevent` into event ID & relays
+    // Convert `nevent` into event ID
     const convertNEvent = (nevent) => {
         try {
             var arr = bech32.bech32.fromWords(bech32.bech32.decode(nevent, 100_000).words);
@@ -118,11 +115,10 @@ export default function AffiliateLogger() {
             return [event_id];
         } catch (error) {
             console.error("convertNEvent error:", error);
-            return [null]; // Return empty data on failure
+            return [null];
         }
     };
 
-    // Utility function for hex/text conversion
     const bytesToHex = (bytes) => bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, "0"), "");
 
     return (
@@ -144,30 +140,47 @@ export default function AffiliateLogger() {
                     {classifiedEvents.length > 0 && (
                         <div style={styles.eventsContainer}>
                             <h3>Classified Listings</h3>
-                            {classifiedEvents.map((classifiedEvent) => (
-                                <div key={classifiedEvent.id} style={styles.card}>
-                                    <img
-                                        src={classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || "https://via.placeholder.com/400"}
-                                        alt="Featured"
-                                        style={styles.cardImage}
-                                    />
-                                    <h3>{classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled"}</h3>
-                                    <p><b>Game:</b> {classifiedEvent.tags.find(tag => tag[0] === "game")?.[1] || "Unknown"}</p>
-                                    <p>{classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available"}</p>
-                                    <p><b>Published By:</b> {classifiedEvent.tags.find(tag => tag[0] === "r")?.[1] || "Unknown"}</p>
+                            {classifiedEvents.map((classifiedEvent) => {
+                                const title = classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled";
+                                const summary = classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available";
+                                const location = classifiedEvent.tags.find(tag => tag[0] === "location")?.[1] || "Unknown location";
+                                const price = classifiedEvent.tags.find(tag => tag[0] === "price")?.slice(1)?.join(" ") || "Price not listed";
+                                const discount = classifiedEvent.tags.find(tag => tag[0] === "discount")?.slice(1)?.join(" ") || "No discount";
+                                const categories = classifiedEvent.tags.filter(tag => tag[0] === "t").map(tag => tag[1]);
 
-                                    {classifiedEvent.tags.find(tag => tag[0] === "downloadUrls") && (
-                                        <a
-                                            href={JSON.parse(classifiedEvent.tags.find(tag => tag[0] === "downloadUrls")?.[1])?.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={styles.downloadButton}
-                                        >
-                                            Download
-                                        </a>
-                                    )}
-                                </div>
-                            ))}
+                                return (
+                                    <div key={classifiedEvent.id} style={styles.card}>
+                                        <h3 style={styles.title}>{title}</h3>
+                                        <p style={styles.summary}>{summary}</p>
+                                        <p><b>Location:</b> {location}</p>
+                                        <p><b>Price:</b> {price}</p>
+                                        <p><b>Discount:</b> {discount}</p>
+
+                                        {/* Display categories */}
+                                        {categories.length > 0 && (
+                                            <p><b>Categories:</b> {categories.join(", ")}</p>
+                                        )}
+
+                                        {/* Image (unchanged) */}
+                                        <img
+                                            src={classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || "https://via.placeholder.com/400"}
+                                            alt="Event"
+                                            style={styles.cardImage}
+                                        />
+
+                                        {classifiedEvent.tags.find(tag => tag[0] === "downloadUrls") && (
+                                            <a
+                                                href={JSON.parse(classifiedEvent.tags.find(tag => tag[0] === "downloadUrls")?.[1])?.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={styles.downloadButton}
+                                            >
+                                                Download
+                                            </a>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
