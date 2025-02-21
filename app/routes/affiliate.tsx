@@ -7,7 +7,7 @@ export default function AffiliateLogger() {
     const [nostr, setNostr] = useState(null);
 
     useEffect(() => {
-        // Function to load a script dynamically
+        // Function to load external scripts dynamically
         const loadScript = (src, onLoad) => {
             const script = document.createElement("script");
             script.src = src;
@@ -16,19 +16,16 @@ export default function AffiliateLogger() {
             document.body.appendChild(script);
         };
 
-        // Load noble-secp256k1 first
+        // Load noble-secp256k1 first, then super_nostr
         loadScript("https://bundle.run/noble-secp256k1@1.2.14", () => {
             console.log("noble-secp256k1 loaded");
-
-            // Load super_nostr after noble-secp256k1 is available
             loadScript("https://supertestnet.github.io/bankify/super_nostr.js", () => {
                 console.log("super_nostr loaded");
-                setNostr(window.super_nostr); // Attach super_nostr from window
+                setNostr(window.super_nostr);
             });
         });
 
         return () => {
-            // Cleanup: remove scripts when component unmounts
             document.querySelectorAll("script[src*='super_nostr.js'], script[src*='noble-secp256k1']").forEach(script => {
                 document.body.removeChild(script);
             });
@@ -60,9 +57,63 @@ export default function AffiliateLogger() {
     }, [nostr, pubkey]); // Fetch only when nostr & pubkey are available
 
     return (
-        <div>
-            <h2>Affiliate Pubkey: {pubkey}</h2>
-            <pre>{event ? JSON.stringify(event, null, 2) : "Loading..."}</pre>
+        <div style={styles.container}>
+            <h2>Affiliate Pubkey</h2>
+            <p>{pubkey}</p>
+
+            {event ? (
+                <div style={styles.linkContainer}>
+                    {event.tags
+                        .filter(tag => tag[0] === "link") // Extract only "link" tags
+                        .map((tag, index) => (
+                            <a key={index} href={tag[1]} target="_blank" rel="noopener noreferrer" style={styles.linkButton}>
+                                {tag[2] || tag[1]} {/* Show text if available, otherwise show URL */}
+                            </a>
+                        ))}
+                </div>
+            ) : (
+                <p>Loading...</p>
+            )}
         </div>
     );
 }
+
+// Inline styles for the Linktree-like layout
+const styles = {
+    container: {
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        backgroundColor: "#121212",
+        color: "#fff",
+        fontFamily: "Arial, sans-serif",
+    },
+    linkContainer: {
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+        width: "80%",
+        maxWidth: "400px",
+        marginTop: "20px",
+    },
+    linkButton: {
+        display: "block",
+        textAlign: "center",
+        backgroundColor: "#1DB954",
+        color: "#fff",
+        textDecoration: "none",
+        padding: "12px",
+        borderRadius: "8px",
+        fontSize: "16px",
+        fontWeight: "bold",
+        transition: "0.3s",
+    },
+};
+
+// Add hover effect
+styles.linkButton[":hover"] = {
+    backgroundColor: "#17a74b",
+};
+
