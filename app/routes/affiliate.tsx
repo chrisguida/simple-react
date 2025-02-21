@@ -5,6 +5,7 @@ export default function AffiliateLogger() {
     const { pubkey } = useParams(); // Get pubkey from URL
     const [event, setEvent] = useState(null);
     const [nostr, setNostr] = useState(null);
+    const [classifiedEvent, setClassifiedEvent] = useState(null); // Store kind-30402 event
 
     useEffect(() => {
         // Function to load external scripts dynamically
@@ -56,6 +57,35 @@ export default function AffiliateLogger() {
         })();
     }, [nostr, pubkey]); // Fetch only when nostr & pubkey are available
 
+    // Fetch a kind-30402 event when a classified "nevent" tag is found
+    useEffect(() => {
+        if (!nostr || !event) return;
+
+        const classifiedTag = event.tags.find(tag => tag[0] === "classified" && tag[1] === "nevent");
+
+        if (classifiedTag) {
+            (async () => {
+                try {
+                    const randomEvents = await nostr.getEvents(
+                        "wss://relay.damus.io",
+                        null, // No filters
+                        null, // Fetch from any pubkey
+                        [30402] // Kind number
+                    );
+
+                    if (randomEvents.length > 0) {
+                        setClassifiedEvent(randomEvents[Math.floor(Math.random() * randomEvents.length)]);
+                    } else {
+                        setClassifiedEvent({ error: "No kind-30402 events found" });
+                    }
+                } catch (error) {
+                    console.error("Error fetching classified event:", error);
+                    setClassifiedEvent({ error: "Failed to fetch classified event" });
+                }
+            })();
+        }
+    }, [nostr, event]); // Fetch when nostr & event are available
+
     return (
         <div style={styles.container}>
             <h2>Affiliate Pubkey</h2>
@@ -70,6 +100,13 @@ export default function AffiliateLogger() {
                                 {tag[2] || tag[1]} {/* Show text if available, otherwise show URL */}
                             </a>
                         ))}
+
+                    {/* Render classified event JSON if found */}
+                    {classifiedEvent && (
+                        <pre style={styles.jsonBox}>
+                            {JSON.stringify(classifiedEvent, null, 2)}
+                        </pre>
+                    )}
                 </div>
             ) : (
                 <p>Loading...</p>
@@ -110,10 +147,22 @@ const styles = {
         fontWeight: "bold",
         transition: "0.3s",
     },
+    jsonBox: {
+        backgroundColor: "#222",
+        padding: "10px",
+        borderRadius: "8px",
+        textAlign: "left",
+        width: "100%",
+        maxWidth: "400px",
+        overflowY: "auto",  // Add vertical scrolling
+        maxHeight: "300px",  // Limit height
+        whiteSpace: "pre-wrap",
+        fontSize: "12px", // Reduce font size
+        lineHeight: "1.2", // Reduce spacing
+    },
 };
 
 // Add hover effect
 styles.linkButton[":hover"] = {
     backgroundColor: "#17a74b",
 };
-
