@@ -2,13 +2,12 @@ import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 export default function AffiliateLogger() {
-    const { pubkey } = useParams(); // Get pubkey from URL
+    const { pubkey } = useParams();
     const [event, setEvent] = useState(null);
     const [nostr, setNostr] = useState(null);
-    const [classifiedEvent, setClassifiedEvent] = useState(null); // Store kind-30402 event
+    const [classifiedEvent, setClassifiedEvent] = useState(null);
 
     useEffect(() => {
-        // Function to load external scripts dynamically
         const loadScript = (src, onLoad) => {
             const script = document.createElement("script");
             script.src = src;
@@ -17,7 +16,6 @@ export default function AffiliateLogger() {
             document.body.appendChild(script);
         };
 
-        // Load noble-secp256k1 first, then super_nostr
         loadScript("https://bundle.run/noble-secp256k1@1.2.14", () => {
             console.log("noble-secp256k1 loaded");
             loadScript("https://supertestnet.github.io/bankify/super_nostr.js", () => {
@@ -40,13 +38,13 @@ export default function AffiliateLogger() {
             try {
                 const events = await nostr.getEvents(
                     "wss://relay.damus.io",
-                    null, // No filters
-                    [pubkey], // Pubkey from route param
-                    [13166] // Kind number
+                    null,
+                    [pubkey],
+                    [13166]
                 );
 
                 if (events.length > 0) {
-                    setEvent(events[0]); // Store event in state
+                    setEvent(events[0]);
                 } else {
                     setEvent({ error: "No events found" });
                 }
@@ -55,9 +53,8 @@ export default function AffiliateLogger() {
                 setEvent({ error: "Failed to fetch event" });
             }
         })();
-    }, [nostr, pubkey]); // Fetch only when nostr & pubkey are available
+    }, [nostr, pubkey]);
 
-    // Fetch a kind-30402 event when a classified "nevent" tag is found
     useEffect(() => {
         if (!nostr || !event) return;
 
@@ -68,9 +65,9 @@ export default function AffiliateLogger() {
                 try {
                     const randomEvents = await nostr.getEvents(
                         "wss://relay.damus.io",
-                        null, // No filters
-                        null, // Fetch from any pubkey
-                        [30402] // Kind number
+                        null,
+                        null,
+                        [30402]
                     );
 
                     if (randomEvents.length > 0) {
@@ -84,48 +81,69 @@ export default function AffiliateLogger() {
                 }
             })();
         }
-    }, [nostr, event]); // Fetch when nostr & event are available
+    }, [nostr, event]);
 
     return (
         <div style={styles.container}>
             <h2>Affiliate Pubkey</h2>
             <p>{pubkey}</p>
 
-            {event ? (
+            {event && (
                 <div style={styles.linkContainer}>
                     {event.tags
-                        .filter(tag => tag[0] === "link") // Extract only "link" tags
+                        .filter(tag => tag[0] === "link")
                         .map((tag, index) => (
                             <a key={index} href={tag[1]} target="_blank" rel="noopener noreferrer" style={styles.linkButton}>
-                                {tag[2] || tag[1]} {/* Show text if available, otherwise show URL */}
+                                {tag[2] || tag[1]}
                             </a>
                         ))}
 
-                    {/* Render classified event JSON if found */}
-                    {classifiedEvent && (
-                        <pre style={styles.jsonBox}>
-                            {JSON.stringify(classifiedEvent, null, 2)}
-                        </pre>
+                    {/* Render the classified event as a card */}
+                    {classifiedEvent && !classifiedEvent.error && (
+                        <div style={styles.card}>
+                            <img
+                                src={classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || "https://via.placeholder.com/400"}
+                                alt="Featured"
+                                style={styles.cardImage}
+                            />
+                            <h3>{classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled"}</h3>
+                            <p><b>Game:</b> {classifiedEvent.tags.find(tag => tag[0] === "game")?.[1] || "Unknown"}</p>
+                            <p>{classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available"}</p>
+                            <p><b>Published By:</b> {classifiedEvent.tags.find(tag => tag[0] === "r")?.[1] || "Unknown"}</p>
+                            
+                            {/* Download link if available */}
+                            {classifiedEvent.tags.find(tag => tag[0] === "downloadUrls") && (
+                                <a
+                                    href={JSON.parse(classifiedEvent.tags.find(tag => tag[0] === "downloadUrls")?.[1])?.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={styles.downloadButton}
+                                >
+                                    Download
+                                </a>
+                            )}
+                        </div>
                     )}
+
+                    {classifiedEvent?.error && <p>{classifiedEvent.error}</p>}
                 </div>
-            ) : (
-                <p>Loading...</p>
             )}
         </div>
     );
 }
 
-// Inline styles for the Linktree-like layout
+// Styles
 const styles = {
     container: {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        height: "100vh",
+        minHeight: "100vh",
         backgroundColor: "#121212",
         color: "#fff",
         fontFamily: "Arial, sans-serif",
+        padding: "20px",
     },
     linkContainer: {
         display: "flex",
@@ -147,22 +165,38 @@ const styles = {
         fontWeight: "bold",
         transition: "0.3s",
     },
-    jsonBox: {
+    card: {
         backgroundColor: "#222",
-        padding: "10px",
-        borderRadius: "8px",
-        textAlign: "left",
+        padding: "20px",
+        borderRadius: "10px",
+        textAlign: "center",
         width: "100%",
         maxWidth: "400px",
-        overflowY: "auto",  // Add vertical scrolling
-        maxHeight: "300px",  // Limit height
-        whiteSpace: "pre-wrap",
-        fontSize: "12px", // Reduce font size
-        lineHeight: "1.2", // Reduce spacing
+        marginTop: "20px",
+    },
+    cardImage: {
+        width: "100%",
+        borderRadius: "10px",
+        marginBottom: "10px",
+    },
+    downloadButton: {
+        display: "block",
+        backgroundColor: "#ff4500",
+        color: "#fff",
+        textDecoration: "none",
+        padding: "10px",
+        borderRadius: "8px",
+        fontSize: "16px",
+        fontWeight: "bold",
+        marginTop: "10px",
+        transition: "0.3s",
     },
 };
 
-// Add hover effect
+// Hover effects
 styles.linkButton[":hover"] = {
     backgroundColor: "#17a74b",
+};
+styles.downloadButton[":hover"] = {
+    backgroundColor: "#cc3700",
 };
