@@ -5,7 +5,8 @@ export default function AffiliateLogger() {
     const { pubkey } = useParams();
     const [event, setEvent] = useState(null);
     const [nostr, setNostr] = useState(null);
-    const [classifiedEvent, setClassifiedEvent] = useState(null);
+    const [classifiedEvents, setClassifiedEvents] = useState([]); // Store all 30402 events
+    const [expandedEventId, setExpandedEventId] = useState(null); // Track expanded event
 
     useEffect(() => {
         const loadScript = (src, onLoad) => {
@@ -63,25 +64,30 @@ export default function AffiliateLogger() {
         if (classifiedTag) {
             (async () => {
                 try {
-                    const randomEvents = await nostr.getEvents(
+                    const fetchedEvents = await nostr.getEvents(
                         "wss://relay.damus.io",
                         null,
                         null,
                         [30402]
                     );
 
-                    if (randomEvents.length > 0) {
-                        setClassifiedEvent(randomEvents[Math.floor(Math.random() * randomEvents.length)]);
+                    if (fetchedEvents.length > 0) {
+                        setClassifiedEvents(fetchedEvents);
                     } else {
-                        setClassifiedEvent({ error: "No kind-30402 events found" });
+                        setClassifiedEvents([]);
                     }
                 } catch (error) {
-                    console.error("Error fetching classified event:", error);
-                    setClassifiedEvent({ error: "Failed to fetch classified event" });
+                    console.error("Error fetching classified events:", error);
+                    setClassifiedEvents([]);
                 }
             })();
         }
     }, [nostr, event]);
+
+    // Toggle function to expand/collapse events
+    const toggleEvent = (eventId) => {
+        setExpandedEventId(expandedEventId === eventId ? null : eventId);
+    };
 
     return (
         <div style={styles.container}>
@@ -98,34 +104,50 @@ export default function AffiliateLogger() {
                             </a>
                         ))}
 
-                    {/* Render the classified event as a card */}
-                    {classifiedEvent && !classifiedEvent.error && (
-                        <div style={styles.card}>
-                            <img
-                                src={classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || "https://via.placeholder.com/400"}
-                                alt="Featured"
-                                style={styles.cardImage}
-                            />
-                            <h3>{classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled"}</h3>
-                            <p><b>Game:</b> {classifiedEvent.tags.find(tag => tag[0] === "game")?.[1] || "Unknown"}</p>
-                            <p>{classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available"}</p>
-                            <p><b>Published By:</b> {classifiedEvent.tags.find(tag => tag[0] === "r")?.[1] || "Unknown"}</p>
-                            
-                            {/* Download link if available */}
-                            {classifiedEvent.tags.find(tag => tag[0] === "downloadUrls") && (
-                                <a
-                                    href={JSON.parse(classifiedEvent.tags.find(tag => tag[0] === "downloadUrls")?.[1])?.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={styles.downloadButton}
-                                >
-                                    Download
-                                </a>
-                            )}
+                    {/* Render classified events as collapsible cards */}
+                    {classifiedEvents.length > 0 && (
+                        <div style={styles.eventsContainer}>
+                            <h3>Classified Listings</h3>
+                            {classifiedEvents.map((classifiedEvent) => {
+                                const eventId = classifiedEvent.id;
+                                const title = classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled";
+
+                                return (
+                                    <div key={eventId} style={styles.eventCard}>
+                                        {/* Title as a clickable button to toggle card */}
+                                        <button onClick={() => toggleEvent(eventId)} style={styles.eventTitle}>
+                                            {title}
+                                        </button>
+
+                                        {/* Expanded event details */}
+                                        {expandedEventId === eventId && (
+                                            <div style={styles.cardContent}>
+                                                <img
+                                                    src={classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || "https://via.placeholder.com/400"}
+                                                    alt="Featured"
+                                                    style={styles.cardImage}
+                                                />
+                                                <p><b>Game:</b> {classifiedEvent.tags.find(tag => tag[0] === "game")?.[1] || "Unknown"}</p>
+                                                <p>{classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available"}</p>
+                                                <p><b>Published By:</b> {classifiedEvent.tags.find(tag => tag[0] === "r")?.[1] || "Unknown"}</p>
+
+                                                {classifiedEvent.tags.find(tag => tag[0] === "downloadUrls") && (
+                                                    <a
+                                                        href={JSON.parse(classifiedEvent.tags.find(tag => tag[0] === "downloadUrls")?.[1])?.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={styles.downloadButton}
+                                                    >
+                                                        Download
+                                                    </a>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
-
-                    {classifiedEvent?.error && <p>{classifiedEvent.error}</p>}
                 </div>
             )}
         </div>
@@ -165,18 +187,34 @@ const styles = {
         fontWeight: "bold",
         transition: "0.3s",
     },
-    card: {
-        backgroundColor: "#222",
-        padding: "20px",
-        borderRadius: "10px",
-        textAlign: "center",
+    eventsContainer: {
+        marginTop: "20px",
         width: "100%",
         maxWidth: "400px",
-        marginTop: "20px",
+    },
+    eventCard: {
+        backgroundColor: "#222",
+        padding: "10px",
+        borderRadius: "8px",
+        marginBottom: "10px",
+    },
+    eventTitle: {
+        backgroundColor: "transparent",
+        color: "#1DB954",
+        border: "none",
+        fontSize: "16px",
+        fontWeight: "bold",
+        cursor: "pointer",
+        textAlign: "left",
+        width: "100%",
+        padding: "10px",
+    },
+    cardContent: {
+        marginTop: "10px",
     },
     cardImage: {
         width: "100%",
-        borderRadius: "10px",
+        borderRadius: "8px",
         marginBottom: "10px",
     },
     downloadButton: {
@@ -194,9 +232,6 @@ const styles = {
 };
 
 // Hover effects
-styles.linkButton[":hover"] = {
-    backgroundColor: "#17a74b",
-};
 styles.downloadButton[":hover"] = {
     backgroundColor: "#cc3700",
 };
