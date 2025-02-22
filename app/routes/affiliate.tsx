@@ -116,12 +116,15 @@ export default function AffiliateLogger() {
 
     return (
         <div style={styles.container}>
-            <h2>Affiliate</h2>
-            <p>{affiliateUsername || pubkey}</p>
+            <div style={styles.affiliateContainer}>
+                <h2 style={styles.affiliateTitle}>Affiliate</h2>
+                <p style={styles.affiliateName}>{affiliateUsername || pubkey}</p>
+            </div>
+
+            <h3 style={styles.listingsTitle}>Classified Listings</h3>
 
             {classifiedEvents.length > 0 && (
                 <div style={styles.eventsContainer}>
-                    <h3>Classified Listings</h3>
                     {classifiedEvents.map((classifiedEvent) => {
                         const title = classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled";
                         const summary = classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available";
@@ -183,6 +186,36 @@ export default function AffiliateLogger() {
 
 
 const styles = {
+    affiliateContainer: {
+        textAlign: "center",
+        marginBottom: "20px",
+    },
+    affiliateTitle: {
+        fontSize: "28px",
+        fontWeight: "bold",
+        color: "#ffcc00",
+        textTransform: "uppercase",
+        letterSpacing: "1.5px",
+    },
+    affiliateName: {
+        fontSize: "22px",
+        fontWeight: "600",
+        color: "#fff",
+        backgroundColor: "#333",
+        padding: "10px 15px",
+        borderRadius: "8px",
+        display: "inline-block",
+    },
+    listingsTitle: {
+        fontSize: "24px",
+        fontWeight: "bold",
+        textAlign: "center",
+        textTransform: "uppercase",
+        letterSpacing: "1px",
+        borderBottom: "2px solid #ffcc00",
+        paddingBottom: "5px",
+        marginBottom: "15px",
+    },
     container: {
         display: "flex",
         flexDirection: "column",
