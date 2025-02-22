@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 
 export default function AffiliateLogger() {
     const { pubkey } = useParams();
+    const [affiliateUsername, setAffiliateUsername] = useState(null);
     const [event, setEvent] = useState(null);
     const [nostr, setNostr] = useState(null);
+    const [bech32, setBech32] = useState(null);
     const [classifiedEvents, setClassifiedEvents] = useState([]);
     const [expandedEvents, setExpandedEvents] = useState({});
 
@@ -21,29 +23,41 @@ export default function AffiliateLogger() {
             loadScript("https://supertestnet.github.io/bankify/super_nostr.js", () => {
                 loadScript("https://bundle.run/bech32@2.0.0", () => {
                     setNostr(window.super_nostr);
+                    setBech32(window.bech32);
                 });
             });
         });
-
-        return () => {
-            document.querySelectorAll("script[src*='super_nostr.js'], script[src*='noble-secp256k1'], script[src*='bech32']").forEach(script => {
-                document.body.removeChild(script);
-            });
-        };
     }, []);
+
+    const hexToBytes = (hex) => {
+        if (!hex) return new Uint8Array();
+        return new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    };
+
+    useEffect(() => {
+        if (!pubkey || !bech32) return;
+
+        const fetchAffiliateUsername = async () => {
+            try {
+                const npub = bech32.bech32.encode("npub", bech32.bech32.toWords(hexToBytes(pubkey)));
+                const response = await fetch(`https://lightlinksio-aehw.Replit.app/api/users/pubkey/${npub}`);
+                const json = await response.json();
+                setAffiliateUsername(json.username || null);
+            } catch (error) {
+                console.error("Error fetching affiliate username:", error);
+                setAffiliateUsername(null);
+            }
+        };
+
+        fetchAffiliateUsername();
+    }, [pubkey, bech32]);
 
     useEffect(() => {
         if (!nostr || !pubkey) return;
 
         (async () => {
             try {
-                const events = await nostr.getEvents(
-                    "wss://relay.damus.io",
-                    null,
-                    [pubkey],
-                    [13166]
-                );
-
+                const events = await nostr.getEvents("wss://relay.damus.io", null, [pubkey], [13166]);
                 setEvent(events.length > 0 ? events[0] : { error: "No events found" });
             } catch (error) {
                 console.error("Error fetching event:", error);
@@ -102,8 +116,8 @@ export default function AffiliateLogger() {
 
     return (
         <div style={styles.container}>
-            <h2>Affiliate Pubkey</h2>
-            <p>{pubkey}</p>
+            <h2>Affiliate</h2>
+            <p>{affiliateUsername || pubkey}</p>
 
             {classifiedEvents.length > 0 && (
                 <div style={styles.eventsContainer}>
@@ -111,27 +125,18 @@ export default function AffiliateLogger() {
                     {classifiedEvents.map((classifiedEvent) => {
                         const title = classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled";
                         const summary = classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available";
+                        const imageUrl = classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || "https://btcpp.dev/static/img/dog_swimming.jpg";
                         const location = classifiedEvent.tags.find(tag => tag[0] === "location")?.[1] || "Unknown location";
                         const price = classifiedEvent.tags.find(tag => tag[0] === "price")?.slice(1)?.join(" ") || "Price not listed";
                         const discount = classifiedEvent.tags.find(tag => tag[0] === "discount")?.slice(1)?.join(" ") || "No discount";
                         const categories = classifiedEvent.tags.filter(tag => tag[0] === "t").map(tag => tag[1]);
-
-                        const imageUrl = classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || 
-                            "https://btcpp.dev/static/img/dog_swimming.jpg";
-
                         return (
                             <div key={classifiedEvent.id} style={styles.card}>
-                                <div 
-                                    style={styles.titleContainer} 
-                                    onClick={() => toggleExpand(classifiedEvent.id)}
-                                >
+                                <div style={styles.titleContainer} onClick={() => toggleExpand(classifiedEvent.id)}>
                                     <h3 style={styles.title}>{title}</h3>
-                                    <div style={styles.expandButton}>
-                                        {expandedEvents[classifiedEvent.id] ? "▲" : "▼"}
-                                    </div>
+                                    <div style={styles.expandButton}>{expandedEvents[classifiedEvent.id] ? "▲" : "▼"}</div>
                                 </div>
                                 <p style={styles.summary}>{summary}</p>
-
                                 {expandedEvents[classifiedEvent.id] && (
                                     <>
                                         <div style={styles.detailsContainer}>
@@ -139,12 +144,12 @@ export default function AffiliateLogger() {
                                                 <div style={styles.label}>Location:</div>
                                                 <div style={styles.value}>{location}</div>
                                             </div>
-                                            
+
                                             <div style={styles.detailRow}>
                                                 <div style={styles.label}>Price:</div>
                                                 <div style={styles.value}>{price}</div>
                                             </div>
-                                            
+
                                             <div style={styles.detailRow}>
                                                 <div style={styles.label}>Discount:</div>
                                                 <div style={styles.value}>{discount}</div>
@@ -176,7 +181,7 @@ export default function AffiliateLogger() {
     );
 }
 
-// **Restored Styles**
+
 const styles = {
     container: {
         display: "flex",
@@ -205,11 +210,6 @@ const styles = {
         marginTop: "20px",
         boxShadow: "0px 8px 20px rgba(0, 0, 0, 0.3)",
     },
-    cardImage: {
-        width: "100%",
-        borderRadius: "8px",
-        marginTop: "10px",
-    },
     titleContainer: {
         display: "flex",
         alignItems: "center",
@@ -230,17 +230,17 @@ const styles = {
     },
     detailsContainer: {
         display: "flex",
-        flexDirection: "column", // Ensure fields stack vertically
+        flexDirection: "column",
         width: "100%",
         marginTop: "10px",
     },
     detailRow: {
         display: "grid",
-        gridTemplateColumns: "120px auto", // Ensure label and value are aligned
+        gridTemplateColumns: "120px auto",
         gap: "10px",
         alignItems: "start",
         width: "100%",
-        marginBottom: "5px", // Add spacing between fields
+        marginBottom: "5px",
     },
     label: {
         fontWeight: "bold",
@@ -250,5 +250,10 @@ const styles = {
     },
     value: {
         textAlign: "left",
+    },
+    cardImage: {
+        width: "100%",
+        borderRadius: "8px",
+        marginTop: "10px",
     },
 };
