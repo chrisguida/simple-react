@@ -5,7 +5,8 @@ export default function AffiliateLogger() {
     const { pubkey } = useParams();
     const [event, setEvent] = useState(null);
     const [nostr, setNostr] = useState(null);
-    const [classifiedEvents, setClassifiedEvents] = useState([]); // Store classified ads
+    const [classifiedEvents, setClassifiedEvents] = useState([]);
+    const [expandedEvents, setExpandedEvents] = useState({});
 
     useEffect(() => {
         const loadScript = (src, onLoad) => {
@@ -16,13 +17,9 @@ export default function AffiliateLogger() {
             document.body.appendChild(script);
         };
 
-        // Load dependencies
         loadScript("https://bundle.run/noble-secp256k1@1.2.14", () => {
-            console.log("noble-secp256k1 loaded");
             loadScript("https://supertestnet.github.io/bankify/super_nostr.js", () => {
-                console.log("super_nostr loaded");
                 loadScript("https://bundle.run/bech32@2.0.0", () => {
-                    console.log("bech32 loaded");
                     setNostr(window.super_nostr);
                 });
             });
@@ -47,11 +44,7 @@ export default function AffiliateLogger() {
                     [13166]
                 );
 
-                if (events.length > 0) {
-                    setEvent(events[0]);
-                } else {
-                    setEvent({ error: "No events found" });
-                }
+                setEvent(events.length > 0 ? events[0] : { error: "No events found" });
             } catch (error) {
                 console.error("Error fetching event:", error);
                 setEvent({ error: "Failed to fetch event" });
@@ -63,37 +56,21 @@ export default function AffiliateLogger() {
         if (!nostr || !event) return;
 
         const classifiedTag = event.tags.find(tag => tag[0] === "classified" && tag[1].startsWith("nevent"));
-
-        if (!classifiedTag || !classifiedTag[1]) {
-            console.warn("No valid nevent found in classified tag.");
-            return;
-        }
-
-        const nevent = classifiedTag[1];
+        if (!classifiedTag || !classifiedTag[1]) return;
 
         let event_id;
         try {
-            [event_id] = convertNEvent(nevent);
+            [event_id] = convertNEvent(classifiedTag[1]);
             if (!event_id) throw new Error("Invalid nevent decoded.");
         } catch (error) {
-            console.error("Failed to decode nevent:", nevent, error);
+            console.error("Failed to decode nevent:", classifiedTag[1], error);
             return;
         }
 
-        console.log("Decoded nevent:", event_id);
-
         (async () => {
             try {
-                const fetchedEvents = await nostr.getEvents(
-                    "wss://relay.damus.io",
-                    [event_id]
-                );
-
-                if (fetchedEvents.length > 0) {
-                    setClassifiedEvents(fetchedEvents);
-                } else {
-                    setClassifiedEvents([]);
-                }
+                const fetchedEvents = await nostr.getEvents("wss://relay.damus.io", [event_id]);
+                setClassifiedEvents(fetchedEvents.length > 0 ? fetchedEvents : []);
             } catch (error) {
                 console.error("Error fetching classified events:", error);
                 setClassifiedEvents([]);
@@ -101,18 +78,13 @@ export default function AffiliateLogger() {
         })();
     }, [nostr, event]);
 
-    // Convert `nevent` into event ID
     const convertNEvent = (nevent) => {
         try {
-            var arr = bech32.bech32.fromWords(bech32.bech32.decode(nevent, 100_000).words);
-            var hex = bytesToHex(arr);
+            const arr = bech32.bech32.fromWords(bech32.bech32.decode(nevent, 100_000).words);
+            const hex = bytesToHex(arr);
 
-            if (hex.length < 64) {
-                throw new Error("Decoded hex string too short to contain a valid event ID.");
-            }
-
-            var event_id = hex.startsWith("0020") ? hex.substring(4, 68) : hex.substring(hex.length - 64);
-            return [event_id];
+            if (hex.length < 64) throw new Error("Decoded hex string too short.");
+            return [hex.startsWith("0020") ? hex.substring(4, 68) : hex.substring(hex.length - 64)];
         } catch (error) {
             console.error("convertNEvent error:", error);
             return [null];
@@ -121,68 +93,59 @@ export default function AffiliateLogger() {
 
     const bytesToHex = (bytes) => bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, "0"), "");
 
+    const toggleExpand = (eventId) => {
+        setExpandedEvents(prevState => ({
+            ...prevState,
+            [eventId]: !prevState[eventId]
+        }));
+    };
+
     return (
         <div style={styles.container}>
             <h2>Affiliate Pubkey</h2>
             <p>{pubkey}</p>
 
-            {event && (
-                <div style={styles.linkContainer}>
-                    {event.tags
-                        .filter(tag => tag[0] === "link")
-                        .map((tag, index) => (
-                            <a key={index} href={tag[1]} target="_blank" rel="noopener noreferrer" style={styles.linkButton}>
-                                {tag[2] || tag[1]}
-                            </a>
-                        ))}
+            {classifiedEvents.length > 0 && (
+                <div style={styles.eventsContainer}>
+                    <h3>Classified Listings</h3>
+                    {classifiedEvents.map((classifiedEvent) => {
+                        const title = classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled";
+                        const summary = classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available";
+                        const location = classifiedEvent.tags.find(tag => tag[0] === "location")?.[1] || "Unknown location";
+                        const price = classifiedEvent.tags.find(tag => tag[0] === "price")?.slice(1)?.join(" ") || "Price not listed";
+                        const discount = classifiedEvent.tags.find(tag => tag[0] === "discount")?.slice(1)?.join(" ") || "No discount";
+                        const categories = classifiedEvent.tags.filter(tag => tag[0] === "t").map(tag => tag[1]);
 
-                    {/* Render classified ads */}
-                    {classifiedEvents.length > 0 && (
-                        <div style={styles.eventsContainer}>
-                            <h3>Classified Listings</h3>
-                            {classifiedEvents.map((classifiedEvent) => {
-                                const title = classifiedEvent.tags.find(tag => tag[0] === "title")?.[1] || "Untitled";
-                                const summary = classifiedEvent.tags.find(tag => tag[0] === "summary")?.[1] || "No description available";
-                                const location = classifiedEvent.tags.find(tag => tag[0] === "location")?.[1] || "Unknown location";
-                                const price = classifiedEvent.tags.find(tag => tag[0] === "price")?.slice(1)?.join(" ") || "Price not listed";
-                                const discount = classifiedEvent.tags.find(tag => tag[0] === "discount")?.slice(1)?.join(" ") || "No discount";
-                                const categories = classifiedEvent.tags.filter(tag => tag[0] === "t").map(tag => tag[1]);
+                        const imageUrl = classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || 
+                            "https://btcpp.dev/static/img/dog_swimming.jpg";
 
-                                return (
-                                    <div key={classifiedEvent.id} style={styles.card}>
-                                        <h3 style={styles.title}>{title}</h3>
+                        return (
+                            <div key={classifiedEvent.id} style={styles.card}>
+                                <h3 style={styles.title} onClick={() => toggleExpand(classifiedEvent.id)}>
+                                    {title}
+                                </h3>
+
+                                {expandedEvents[classifiedEvent.id] && (
+                                    <>
                                         <p style={styles.summary}>{summary}</p>
                                         <p><b>Location:</b> {location}</p>
                                         <p><b>Price:</b> {price}</p>
                                         <p><b>Discount:</b> {discount}</p>
 
-                                        {/* Display categories */}
                                         {categories.length > 0 && (
                                             <p><b>Categories:</b> {categories.join(", ")}</p>
                                         )}
 
-                                        {/* Image (unchanged) */}
                                         <img
-                                            src={classifiedEvent.tags.find(tag => tag[0] === "featuredImageUrl")?.[1] || "https://via.placeholder.com/400"}
+                                            src={imageUrl}
                                             alt="Event"
                                             style={styles.cardImage}
                                         />
-
-                                        {classifiedEvent.tags.find(tag => tag[0] === "downloadUrls") && (
-                                            <a
-                                                href={JSON.parse(classifiedEvent.tags.find(tag => tag[0] === "downloadUrls")?.[1])?.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={styles.downloadButton}
-                                            >
-                                                Download
-                                            </a>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -199,63 +162,44 @@ const styles = {
         minHeight: "100vh",
         backgroundColor: "#121212",
         color: "#fff",
-        fontFamily: "Arial, sans-serif",
+        fontFamily: "'Poppins', sans-serif",
         padding: "20px",
-    },
-    linkContainer: {
-        display: "flex",
-        flexDirection: "column",
-        gap: "10px",
-        width: "80%",
-        maxWidth: "400px",
-        marginTop: "20px",
-    },
-    linkButton: {
-        display: "block",
-        textAlign: "center",
-        backgroundColor: "#1DB954",
-        color: "#fff",
-        textDecoration: "none",
-        padding: "12px",
-        borderRadius: "8px",
-        fontSize: "16px",
-        fontWeight: "bold",
-        transition: "0.3s",
     },
     eventsContainer: {
         marginTop: "20px",
         width: "100%",
-        maxWidth: "400px",
+        maxWidth: "500px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
     },
     card: {
-        backgroundColor: "#222",
+        backgroundColor: "#1e1e1e",
         padding: "20px",
-        borderRadius: "10px",
+        borderRadius: "12px",
         textAlign: "center",
         width: "100%",
-        maxWidth: "400px",
+        maxWidth: "500px",
         marginTop: "20px",
+        boxShadow: "0px 8px 20px rgba(0, 0, 0, 0.3)",
+        border: "1px solid rgba(255, 255, 255, 0.1)",
+        cursor: "pointer",
+    },
+    title: {
+        fontSize: "26px",
+        fontWeight: "bold",
+        marginBottom: "5px",
+        color: "#ffcc00",
+        cursor: "pointer",
+    },
+    summary: {
+        fontSize: "16px",
+        color: "#ccc",
+        marginBottom: "10px",
     },
     cardImage: {
         width: "100%",
         borderRadius: "8px",
-        marginBottom: "10px",
-    },
-    downloadButton: {
-        display: "block",
-        backgroundColor: "#ff4500",
-        color: "#fff",
-        textDecoration: "none",
-        padding: "10px",
-        borderRadius: "8px",
-        fontSize: "16px",
-        fontWeight: "bold",
         marginTop: "10px",
-        transition: "0.3s",
     },
-};
-
-// Hover effects
-styles.downloadButton[":hover"] = {
-    backgroundColor: "#cc3700",
 };
