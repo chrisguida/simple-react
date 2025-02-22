@@ -121,20 +121,37 @@ export default function AffiliateLogger() {
 
                         return (
                             <div key={classifiedEvent.id} style={styles.card}>
-                                <h3 style={styles.title} onClick={() => toggleExpand(classifiedEvent.id)}>
-                                    {title}
-                                </h3>
+                                <div style={styles.titleContainer}>
+                                    <h3 style={styles.title}>{title}</h3>
+                                    <div 
+                                        style={styles.expandButton} 
+                                        onClick={() => toggleExpand(classifiedEvent.id)}
+                                    >
+                                        {expandedEvents[classifiedEvent.id] ? "▲" : "▼"}
+                                    </div>
+                                </div>
 
                                 {expandedEvents[classifiedEvent.id] && (
                                     <>
                                         <p style={styles.summary}>{summary}</p>
-                                        <p><b>Location:</b> {location}</p>
-                                        <p><b>Price:</b> {price}</p>
-                                        <p><b>Discount:</b> {discount}</p>
 
-                                        {categories.length > 0 && (
-                                            <p><b>Categories:</b> {categories.join(", ")}</p>
-                                        )}
+                                        <div style={styles.detailsContainer}>
+                                            <div style={styles.label}>Location:</div>
+                                            <div style={styles.value}>{location}</div>
+                                            
+                                            <div style={styles.label}>Price:</div>
+                                            <div style={styles.value}>{price}</div>
+                                            
+                                            <div style={styles.label}>Discount:</div>
+                                            <div style={styles.value}>{discount}</div>
+                                            
+                                            {categories.length > 0 && (
+                                                <>
+                                                    <div style={styles.label}>Categories:</div>
+                                                    <div style={styles.value}>{categories.join(", ")}</div>
+                                                </>
+                                            )}
+                                        </div>
 
                                         <img
                                             src={imageUrl}
@@ -151,8 +168,6 @@ export default function AffiliateLogger() {
         </div>
     );
 }
-
-// Styles
 const styles = {
     container: {
         display: "flex",
@@ -171,31 +186,68 @@ const styles = {
         maxWidth: "500px",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
     },
     card: {
         backgroundColor: "#1e1e1e",
         padding: "20px",
         borderRadius: "12px",
-        textAlign: "center",
         width: "100%",
         maxWidth: "500px",
         marginTop: "20px",
         boxShadow: "0px 8px 20px rgba(0, 0, 0, 0.3)",
         border: "1px solid rgba(255, 255, 255, 0.1)",
-        cursor: "pointer",
+    },
+    titleContainer: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: "10px",
     },
     title: {
         fontSize: "26px",
         fontWeight: "bold",
-        marginBottom: "5px",
         color: "#ffcc00",
-        cursor: "pointer",
+        textAlign: "center", // Centered title
+        flex: 1, // Ensure it takes up available space
     },
     summary: {
         fontSize: "16px",
         color: "#ccc",
+        textAlign: "center", // Centered summary
         marginBottom: "10px",
+    },
+    expandButton: {
+        fontSize: "20px",
+        color: "#fff",
+        backgroundColor: "#333",
+        padding: "8px",
+        borderRadius: "8px",
+        border: "1px solid #555",
+        cursor: "pointer",
+        transition: "background-color 0.2s",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: "36px",
+        height: "36px",
+        textAlign: "center",
+    },
+    expandButtonHover: {
+        backgroundColor: "#444",
+    },
+    detailsContainer: {
+        display: "grid",
+        gridTemplateColumns: "120px auto",
+        gap: "5px",
+        marginTop: "10px",
+    },
+    label: {
+        fontWeight: "bold",
+        textAlign: "right",
+        paddingRight: "10px",
+    },
+    value: {
+        textAlign: "left",
     },
     cardImage: {
         width: "100%",
